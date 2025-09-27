@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <title>แผนผังถังดับเพลิง</title>
+  <style>
+    body {
+      font-family: sans-serif;
+      padding: 20px;
+    }
+
+    h2 {
+      text-align: center;
+    }
+
+    .map-container {
+      position: relative;
+      width: 100%;
+      max-width: 868px;
+      aspect-ratio: 868 / 598;
+      background-image: url('https://github.com/safetyhealthenvgs-code/Firemap-Office-Second-Floor/blob/main/Lay%20out%20office%20second%20floor.jpg?raw=true');
+      background-size: contain;
+      background-position: top left;
+      background-repeat: no-repeat;
+      border: 1px solid #ccc;
+      margin: auto;
+    }
+
+    .map-container::before {
+      content: "";
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background-image:
+        linear-gradient(to right, rgba(0,0,0,0.05) 1px, transparent 1px),
+        linear-gradient(to bottom, rgba(0,0,0,0.05) 1px, transparent 1px);
+      background-size: 10% 10%;
+      pointer-events: none;
+    }
+
+    .marker {
+      position: absolute;
+      width: 12px;
+      height: 12px;
+      background-color: red;
+      border: 2px solid white;
+      box-shadow: 0 0 3px rgba(0, 0, 0, 0.5);
+      border-radius: 50%;
+      transform: translate(-50%, -50%);
+      cursor: pointer;
+    }
+
+    .marker:hover::after {
+      content: attr(data-info);
+      position: absolute;
+      top: -45px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(0, 0, 0, 0.8);
+      color: white;
+      padding: 4px 8px;
+      border-radius: 4px;
+      font-size: 12px;
+      white-space: nowrap;
+      z-index: 10;
+    }
+  </style>
+</head>
+<body>
+  <h2>แผนผังถังดับเพลิง</h2>
+  <div class="map-container" id="map"></div>
+
+  <script>
+    const SHEET_ID = "18YbWGcRIHhxv40v_7NTXQUNL3mV9jnNQrjfcUOvQEQs";
+    const SHEET_NAME = "Zone Office Second Floor";
+    const jsonUrl = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json&sheet=${encodeURIComponent(SHEET_NAME)}`;
+
+    fetch(jsonUrl)
+      .then(res => res.text())
+      .then(text => {
+        const json = JSON.parse(text.substr(47).slice(0, -2));
+        const rows = json.table.rows;
+
+        rows.forEach((row, i) => {
+          const date = row.c[1]?.f || row.c[1]?.v || "";// วันที่ตรวจ (คอลัมน์ 2)
+          const inspector = row.c[2]?.v || "";// ชื่อผู้ตรวจ (คอลัมน์ 3)
+          const number = row.c[3]?.v || "";   // หมายเลขถัง (คอลัมน์ 4)
+          const xyStr = row.c[13]?.v || "";   // พิกัด XY (คอลัมน์ 14)
+
+          if (!xyStr.includes(",")) {
+            console.warn(`แถว ${i} ไม่มีพิกัดที่ถูกต้อง: ${xyStr}`);
+            return;
+          }
+
+          const [xStr, yStr] = xyStr.split(",");
+          const x = parseFloat(xStr.trim());
+          const y = parseFloat(yStr.trim());
+
+          if (isNaN(x) || isNaN(y)) {
+            console.warn(`แถว ${i} มีพิกัดที่ไม่ใช่ตัวเลข: x=${xStr}, y=${yStr}`);
+            return;
+          }
+
+          // สร้างข้อความ tooltip
+          const info = `วันที่ตรวจ: ${date}\nหมายเลขถัง: ${number}\nผู้ตรวจ: ${inspector}`;
+
+          // แสดง marker จากพิกัด 0–100
+          const marker = document.createElement("div");
+          marker.className = "marker";
+          marker.style.left = `${x}%`;
+          marker.style.top = `${y}%`;
+          marker.setAttribute("data-info", info);
+
+          document.getElementById("map").appendChild(marker);
+        });
+      })
+      .catch(err => {
+        console.error("โหลดข้อมูลไม่สำเร็จ:", err);
+      });
+  </script>
+</body>
+</html>
