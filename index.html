@@ -8,30 +8,26 @@
 body{font-family:sans-serif;padding:20px}
 h2{text-align:center}
 .filter{text-align:center;margin-bottom:10px}
-
 .map-container{
   position:relative;
   width:100%;
   max-width:867px;
-  aspect-ratio:867 / 595;
-  background-image:url('https://github.com/safetyhealthenvgs-code/Zone-Office-Third-Floor/blob/main/Lay%20out%20office%20third%20floor.jpg?raw=true');
+  aspect-ratio:867/595;
+  background:url('https://github.com/safetyhealthenvgs-code/Zone-Office-Third-Floor/blob/main/Lay%20out%20office%20third%20floor.jpg?raw=true')
+    no-repeat top left;
   background-size:contain;
-  background-position:top left;
-  background-repeat:no-repeat;
   border:1px solid #ccc;
   margin:auto
 }
-
 .marker{
   position:absolute;
   width:12px;height:12px;
   background:red;
-  border:2px solid white;
+  border:2px solid #fff;
   border-radius:50%;
   transform:translate(-50%,-50%);
   cursor:pointer
 }
-
 .marker:hover::after{
   content:attr(data-info);
   position:absolute;
@@ -39,8 +35,8 @@ h2{text-align:center}
   transform:translateX(-50%);
   background:#000c;color:#fff;
   padding:6px 8px;
-  border-radius:4px;
   font-size:12px;
+  border-radius:4px;
   white-space:pre;
   z-index:10
 }
@@ -63,32 +59,36 @@ const SHEET_ID="18YbWGcRIHhxv40v_7NTXQUNL3mV9jnNQrjfcUOvQEQs";
 const SHEET_NAME="Zone Office Third Floor";
 
 const DATE_COL=1, INSPECTOR_COL=2, NUMBER_COL=3, XY_COL=13;
-
 const url=`https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json&sheet=${encodeURIComponent(SHEET_NAME)}`;
 let rows=[];
 
-/* ===== PARSE DATE (หัวใจของการแก้ NaN/3111) ===== */
-function parseThaiDate(v){
-  if (!v) return null;
-
-  // กรณีเป็น string เช่น 27/9/2568
-  if (typeof v === "string" && v.includes("/")) {
-    const [d,m,y]=v.split("/").map(Number);
-    return { day:d, month:m, yearBE:y, yearCE:y-543 };
-  }
-
-  // fallback (กรณีเป็น Date object จริง)
-  const d=new Date(v);
-  if (isNaN(d)) return null;
-  return {
-    day:d.getDate(),
-    month:d.getMonth()+1,
-    yearBE:d.getFullYear()+543,
-    yearCE:d.getFullYear()
-  };
+/* ===== แสดงปีแบบปลอดภัย ===== */
+function displayYear(y){
+  y=parseInt(y,10);
+  return y<2400 ? y+543 : y;
 }
 
-/* ===== LOAD DATA ===== */
+/* ===== parseDate แบบไม่แตะปี ===== */
+function parseDate(cell){
+  if(!cell) return null;
+
+  if(typeof cell.v==="string"){
+    const m=cell.v.match(/Date\((\d+),(\d+),(\d+)\)/);
+    if(m){
+      return {day:+m[3],month:+m[2]+1,year:+m[1]};
+    }
+  }
+
+  if(typeof cell.f==="string"){
+    const p=cell.f.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+    if(p){
+      return {day:+p[1],month:+p[2],year:+p[3]};
+    }
+  }
+  return null;
+}
+
+/* ===== LOAD ===== */
 fetch(url)
 .then(r=>r.text())
 .then(t=>{
@@ -97,14 +97,12 @@ fetch(url)
   buildDropdown();
 });
 
-/* ===== BUILD DROPDOWN ===== */
+/* ===== DROPDOWN ===== */
 function buildDropdown(){
   const set=new Set();
-
   rows.forEach(r=>{
-    const d=parseThaiDate(r.c[DATE_COL]?.v);
-    if(!d) return;
-    set.add(`${d.month}/${d.yearCE}`);
+    const d=parseDate(r.c[DATE_COL]);
+    if(d) set.add(`${d.month}/${d.year}`);
   });
 
   const sel=document.getElementById("monthFilter");
@@ -118,38 +116,34 @@ function buildDropdown(){
     const [m,y]=v.split("/").map(Number);
     const o=document.createElement("option");
     o.value=v;
-    o.textContent=`${m}/${y+543}`;
+    o.textContent=`${m}/${displayYear(y)}`;
     sel.appendChild(o);
   });
 
-  sel.onchange=()=>renderMap(sel.value);
-  if(sel.value) renderMap(sel.value);
+  sel.onchange=()=>render(sel.value);
+  render(sel.value);
 }
 
-/* ===== RENDER MAP ===== */
-function renderMap(selected){
+/* ===== RENDER ===== */
+function render(selected){
   const map=document.getElementById("map");
   map.innerHTML="";
-
   rows.forEach(r=>{
-    const d=parseThaiDate(r.c[DATE_COL]?.v);
-    if(!d || `${d.month}/${d.yearCE}`!==selected) return;
+    const d=parseDate(r.c[DATE_COL]);
+    if(!d||`${d.month}/${d.year}`!==selected) return;
 
     const xy=r.c[XY_COL]?.v;
     if(!xy||!xy.includes(",")) return;
     const [x,y]=xy.split(",").map(Number);
 
-    const info=
-`วันที่ตรวจ: ${d.day}/${d.month}/${d.yearBE}
-หมายเลขถัง: ${r.c[NUMBER_COL]?.v||""}
-ผู้ตรวจ: ${r.c[INSPECTOR_COL]?.v||""}`;
-
     const m=document.createElement("div");
     m.className="marker";
     m.style.left=`${x}%`;
     m.style.top=`${y}%`;
-    m.setAttribute("data-info",info);
-
+    m.setAttribute("data-info",
+`วันที่ตรวจ: ${d.day}/${d.month}/${displayYear(d.year)}
+หมายเลขถัง: ${r.c[NUMBER_COL]?.v||""}
+ผู้ตรวจ: ${r.c[INSPECTOR_COL]?.v||""}`);
     map.appendChild(m);
   });
 }
@@ -157,6 +151,5 @@ function renderMap(selected){
 
 </body>
 </html>
-
 
 
