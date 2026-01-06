@@ -1,125 +1,139 @@
 <!DOCTYPE html>
 <html lang="th">
 <head>
-  <meta charset="UTF-8">
-  <title>แผนผังถังดับเพลิง</title>
-  <style>
-    body {
-      font-family: sans-serif;
-      padding: 20px;
-    }
+<meta charset="UTF-8">
+<title>แผนผังถังดับเพลิง – ชั้นสาม</title>
 
-    h2 {
-      text-align: center;
-    }
+<style>
+body{font-family:sans-serif;padding:20px}
+h2{text-align:center}
+.filter{text-align:center;margin-bottom:10px}
 
-    .map-container {
-      position: relative;
-      width: 100%;
-      max-width: 867px;
-      aspect-ratio: 867 / 595;
-      background-image: url('https://github.com/safetyhealthenvgs-code/Zone-Office-Third-Floor/blob/main/Lay%20out%20office%20third%20floor.jpg?raw=true');
-      background-size: contain;
-      background-position: top left;
-      background-repeat: no-repeat;
-      border: 1px solid #ccc;
-      margin: auto;
-    }
+.map-container{
+  position:relative;
+  width:100%;
+  max-width:867px;
+  aspect-ratio:867/595;
+  background:url('https://github.com/safetyhealthenvgs-code/Zone-Office-Third-Floor/blob/main/Lay%20out%20office%20third%20floor.jpg?raw=true')
+    no-repeat top left;
+  background-size:contain;
+  border:1px solid #ccc;
+  margin:auto
+}
 
-    .map-container::before {
-      content: "";
-      position: absolute;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
-      background-image:
-        linear-gradient(to right, rgba(0,0,0,0.05) 1px, transparent 1px),
-        linear-gradient(to bottom, rgba(0,0,0,0.05) 1px, transparent 1px);
-      background-size: 10% 10%;
-      pointer-events: none;
-    }
+.marker{
+  position:absolute;
+  width:12px;height:12px;
+  background:red;
+  border:2px solid #fff;
+  border-radius:50%;
+  transform:translate(-50%,-50%);
+  cursor:pointer
+}
 
-    .marker {
-      position: absolute;
-      width: 12px;
-      height: 12px;
-      background-color: red;
-      border: 2px solid white;
-      box-shadow: 0 0 3px rgba(0, 0, 0, 0.5);
-      border-radius: 50%;
-      transform: translate(-50%, -50%);
-      cursor: pointer;
-    }
-
-    .marker:hover::after {
-      content: attr(data-info);
-      position: absolute;
-      top: -45px;
-      left: 50%;
-      transform: translateX(-50%);
-      background: rgba(0, 0, 0, 0.8);
-      color: white;
-      padding: 4px 8px;
-      border-radius: 4px;
-      font-size: 12px;
-      white-space: nowrap;
-      z-index: 10;
-    }
-  </style>
+.marker:hover::after{
+  content:attr(data-info);
+  position:absolute;
+  top:-65px;left:50%;
+  transform:translateX(-50%);
+  background:#000c;color:#fff;
+  padding:6px 8px;
+  font-size:12px;
+  border-radius:4px;
+  white-space:pre;
+  z-index:10
+}
+</style>
 </head>
+
 <body>
-  <h2>แผนผังถังดับเพลิง</h2>
-  <div class="map-container" id="map"></div>
 
-  <script>
-    const SHEET_ID = "18YbWGcRIHhxv40v_7NTXQUNL3mV9jnNQrjfcUOvQEQs";
-    const SHEET_NAME = "Zone Office Third Floor";
-    const jsonUrl = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json&sheet=${encodeURIComponent(SHEET_NAME)}`;
+<h2>แผนผังถังดับเพลิง (Office ชั้นสาม)</h2>
 
-    fetch(jsonUrl)
-      .then(res => res.text())
-      .then(text => {
-        const json = JSON.parse(text.substr(47).slice(0, -2));
-        const rows = json.table.rows;
+<div class="filter">
+  เลือกเดือน:
+  <select id="monthFilter"></select>
+</div>
 
-        rows.forEach((row, i) => {
-          const date = row.c[1]?.f || row.c[1]?.v || "";// วันที่ตรวจ (คอลัมน์ 2)
-          const inspector = row.c[2]?.v || "";// ชื่อผู้ตรวจ (คอลัมน์ 3)
-          const number = row.c[3]?.v || "";   // หมายเลขถัง (คอลัมน์ 4)
-          const xyStr = row.c[13]?.v || "";   // พิกัด XY (คอลัมน์ 14)
+<div class="map-container" id="map"></div>
 
-          if (!xyStr.includes(",")) {
-            console.warn(`แถว ${i} ไม่มีพิกัดที่ถูกต้อง: ${xyStr}`);
-            return;
-          }
+<script>
+/* ===== CONFIG ===== */
+const SHEET_ID="18YbWGcRIHhxv40v_7NTXQUNL3mV9jnNQrjfcUOvQEQs";
+const SHEET_NAME="Zone Office Third Floor";
+const DATE_COL=1, INSPECTOR_COL=2, NUMBER_COL=3, XY_COL=13;
+/* ================== */
 
-          const [xStr, yStr] = xyStr.split(",");
-          const x = parseFloat(xStr.trim());
-          const y = parseFloat(yStr.trim());
+const url=`https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json&sheet=${encodeURIComponent(SHEET_NAME)}`;
+let rows=[];
 
-          if (isNaN(x) || isNaN(y)) {
-            console.warn(`แถว ${i} มีพิกัดที่ไม่ใช่ตัวเลข: x=${xStr}, y=${yStr}`);
-            return;
-          }
+/* ===== LOAD DATA ===== */
+fetch(url)
+.then(r=>r.text())
+.then(t=>{
+  const json=JSON.parse(t.substring(47).slice(0,-2));
+  rows=json.table.rows;
+  buildDropdown();
+})
+.catch(err=>console.error("โหลดข้อมูลไม่สำเร็จ:",err));
 
-          // สร้างข้อความ tooltip
-          const info = `วันที่ตรวจ: ${date}\nหมายเลขถัง: ${number}\nผู้ตรวจ: ${inspector}`;
+/* ===== DROPDOWN ===== */
+function buildDropdown(){
+  const set=new Set();
 
-          // แสดง marker จากพิกัด 0–100
-          const marker = document.createElement("div");
-          marker.className = "marker";
-          marker.style.left = `${x}%`;
-          marker.style.top = `${y}%`;
-          marker.setAttribute("data-info", info);
+  rows.forEach(r=>{
+    if(!r.c[DATE_COL]?.v) return;
+    const d=new Date(r.c[DATE_COL].v);
+    set.add(`${d.getMonth()+1}/${d.getFullYear()}`);
+  });
 
-          document.getElementById("map").appendChild(marker);
-        });
-      })
-      .catch(err => {
-        console.error("โหลดข้อมูลไม่สำเร็จ:", err);
-      });
-  </script>
+  const sel=document.getElementById("monthFilter");
+  sel.innerHTML="";
+
+  [...set].sort((a,b)=>{
+    const [ma,ya]=a.split("/").map(Number);
+    const [mb,yb]=b.split("/").map(Number);
+    return yb-ya||mb-ma;
+  }).forEach(v=>{
+    const [m,y]=v.split("/").map(Number);
+    const o=document.createElement("option");
+    o.value=v;
+    o.textContent=`${m}/${y+543}`; // แสดง พ.ศ.
+    sel.appendChild(o);
+  });
+
+  sel.onchange=()=>render(sel.value);
+  render(sel.value);
+}
+
+/* ===== RENDER MAP ===== */
+function render(selected){
+  const map=document.getElementById("map");
+  map.innerHTML="";
+
+  rows.forEach(r=>{
+    if(!r.c[DATE_COL]?.v) return;
+
+    const d=new Date(r.c[DATE_COL].v);
+    if(`${d.getMonth()+1}/${d.getFullYear()}`!==selected) return;
+
+    const xy=r.c[XY_COL]?.v;
+    if(!xy||!xy.includes(",")) return;
+    const [x,y]=xy.split(",").map(Number);
+
+    const m=document.createElement("div");
+    m.className="marker";
+    m.style.left=`${x}%`;
+    m.style.top=`${y}%`;
+    m.setAttribute("data-info",
+`วันที่ตรวจ: ${d.getDate()}/${d.getMonth()+1}/${d.getFullYear()+543}
+หมายเลขถัง: ${r.c[NUMBER_COL]?.v||""}
+ผู้ตรวจ: ${r.c[INSPECTOR_COL]?.v||""}`);
+
+    map.appendChild(m);
+  });
+}
+</script>
+
 </body>
-
 </html>
